@@ -5,8 +5,6 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
-      - key: CLOUDFLARE_API_TOKEN
-        sync: false
       - key: CLOUDFLARE_EMAIL
         sync: false
       - key: CLOUDFLARE_API_KEY
@@ -14,7 +12,5 @@ services:
       - key: REGISTRAR_API_URL
         value: https://api.ukraine.com.ua/v2
       - key: REGISTRAR_API_KEY
-        sync: false
-      - key: REGISTRAR_API_SECRET
         sync: false
 

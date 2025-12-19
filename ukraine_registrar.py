@@ -11,29 +11,16 @@ API v2: https://www.ukraine.com.ua/domains/apiv2/
 """
 
 import requests
-from config import REGISTRAR_API_URL, REGISTRAR_API_KEY, REGISTRAR_API_SECRET
+from config import REGISTRAR_API_URL, REGISTRAR_API_KEY
 
 def get_ukraine_headers():
-    """Получение заголовков для API ukraine.com.ua"""
-    # API ukraine.com.ua обычно использует Basic Auth или Token
-    # Адаптируйте под вашу схему аутентификации
-    if REGISTRAR_API_SECRET:
-        # Basic Auth
-        import base64
-        credentials = f"{REGISTRAR_API_KEY}:{REGISTRAR_API_SECRET}"
-        encoded = base64.b64encode(credentials.encode()).decode()
-        return {
-            'Authorization': f'Basic {encoded}',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
-    else:
-        # Token Auth
-        return {
-            'Authorization': f'Bearer {REGISTRAR_API_KEY}',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
+    """Получение заголовков для API ukraine.com.ua - использует только API ключ"""
+    # API ukraine.com.ua использует Bearer Token с API ключом
+    return {
+        'Authorization': f'Bearer {REGISTRAR_API_KEY}',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
 
 def ukraine_get_dns_records(domain):
     """

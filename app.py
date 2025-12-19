@@ -24,18 +24,13 @@ app = Flask(__name__)
 CORS(app)
 
 def get_cloudflare_headers():
-    """Get Cloudflare API headers"""
-    if CLOUDFLARE_API_TOKEN:
-        return {
-            'Authorization': f'Bearer {CLOUDFLARE_API_TOKEN}',
-            'Content-Type': 'application/json'
-        }
-    else:
-        return {
-            'X-Auth-Email': CLOUDFLARE_EMAIL,
-            'X-Auth-Key': CLOUDFLARE_API_KEY,
-            'Content-Type': 'application/json'
-        }
+    """Get Cloudflare API headers - использует Global API Key"""
+    # Используем Global API Key (Email + API Key)
+    return {
+        'X-Auth-Email': CLOUDFLARE_EMAIL,
+        'X-Auth-Key': CLOUDFLARE_API_KEY,
+        'Content-Type': 'application/json'
+    }
 
 def get_registrar_headers():
     """Get registrar API headers - использует функции для ukraine.com.ua"""
@@ -350,11 +345,11 @@ def check_config():
     """Проверка конфигурации при запуске"""
     warnings = []
     
-    if not CLOUDFLARE_API_TOKEN and (not CLOUDFLARE_EMAIL or not CLOUDFLARE_API_KEY):
-        warnings.append("⚠️  Cloudflare API credentials не настроены!")
+    if not CLOUDFLARE_EMAIL or not CLOUDFLARE_API_KEY:
+        warnings.append("⚠️  Cloudflare API credentials не настроены! (нужны CLOUDFLARE_EMAIL и CLOUDFLARE_API_KEY)")
     
     if not REGISTRAR_API_URL or not REGISTRAR_API_KEY:
-        warnings.append("⚠️  Registrar API credentials не настроены!")
+        warnings.append("⚠️  Ukraine.com.ua API credentials не настроены! (нужны REGISTRAR_API_URL и REGISTRAR_API_KEY)")
     
     if warnings:
         print("\n".join(warnings))
