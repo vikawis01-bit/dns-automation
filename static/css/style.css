@@ -192,3 +192,61 @@ button:disabled {
     border-left: 4px solid #28a745;
 }
 
+.api-settings {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-bottom: 20px;
+}
+
+.settings-group {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    border: 2px solid #e0e0e0;
+}
+
+.settings-group h3 {
+    margin-top: 0;
+    color: #667eea;
+    font-size: 1.2em;
+    margin-bottom: 15px;
+}
+
+.settings-group small {
+    display: block;
+    color: #666;
+    font-size: 12px;
+    margin-top: 5px;
+    font-style: italic;
+}
+
+.btn-save {
+    background: #28a745;
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-save:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+}
+
+input[readonly] {
+    background: #f5f5f5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+    .api-settings {
+        grid-template-columns: 1fr;
+    }
+}
+

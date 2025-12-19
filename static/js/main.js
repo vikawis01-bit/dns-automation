@@ -1,4 +1,126 @@
+// Функции для работы с API ключами
+function getApiKeys() {
+    return {
+        cloudflare_email: localStorage.getItem('cloudflare_email') || '',
+        cloudflare_api_key: localStorage.getItem('cloudflare_api_key') || '',
+        registrar_api_url: localStorage.getItem('registrar_api_url') || 'https://api.ukraine.com.ua/v2',
+        registrar_api_key: localStorage.getItem('registrar_api_key') || ''
+    };
+}
+
+async function saveApiSettings() {
+    const email = document.getElementById('cloudflare_email').value.trim();
+    const cfKey = document.getElementById('cloudflare_api_key').value.trim();
+    const regUrl = document.getElementById('registrar_api_url').value.trim();
+    const regKey = document.getElementById('registrar_api_key').value.trim();
+    
+    if (!email || !cfKey || !regKey) {
+        showSettingsStatus('⚠️ Заполните все обязательные поля!', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                cloudflare_email: email,
+                cloudflare_api_key: cfKey,
+                registrar_api_url: regUrl,
+                registrar_api_key: regKey
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.error) {
+            showSettingsStatus('❌ Ошибка: ' + result.error, 'error');
+            return;
+        }
+        
+        // Сохраняем также в localStorage для быстрого доступа
+        localStorage.setItem('cloudflare_email', email);
+        localStorage.setItem('cloudflare_api_key', cfKey);
+        localStorage.setItem('registrar_api_url', regUrl);
+        localStorage.setItem('registrar_api_key', regKey);
+        
+        showSettingsStatus('✅ Настройки сохранены на сервере!', 'success');
+        
+        // Очищаем поля паролей для безопасности
+        setTimeout(() => {
+            document.getElementById('cloudflare_api_key').value = '';
+            document.getElementById('registrar_api_key').value = '';
+        }, 1000);
+    } catch (error) {
+        showSettingsStatus('❌ Ошибка сохранения: ' + error.message, 'error');
+    }
+}
+
+async function loadApiSettings() {
+    try {
+        // Сначала пытаемся загрузить с сервера
+        const response = await fetch('/api/settings');
+        const result = await response.json();
+        
+        if (result.cloudflare_email) {
+            document.getElementById('cloudflare_email').value = result.cloudflare_email;
+            document.getElementById('cloudflare_api_key').value = result.cloudflare_api_key || '';
+            document.getElementById('registrar_api_url').value = result.registrar_api_url || 'https://api.ukraine.com.ua/v2';
+            document.getElementById('registrar_api_key').value = result.registrar_api_key || '';
+            
+            // Сохраняем в localStorage
+            localStorage.setItem('cloudflare_email', result.cloudflare_email);
+            localStorage.setItem('cloudflare_api_key', result.cloudflare_api_key || '');
+            localStorage.setItem('registrar_api_url', result.registrar_api_url || 'https://api.ukraine.com.ua/v2');
+            localStorage.setItem('registrar_api_key', result.registrar_api_key || '');
+        } else {
+            // Если на сервере нет, загружаем из localStorage
+            const keys = getApiKeys();
+            document.getElementById('cloudflare_email').value = keys.cloudflare_email;
+            document.getElementById('cloudflare_api_key').value = keys.cloudflare_api_key;
+            document.getElementById('registrar_api_url').value = keys.registrar_api_url;
+            document.getElementById('registrar_api_key').value = keys.registrar_api_key;
+        }
+    } catch (error) {
+        // Если ошибка, загружаем из localStorage
+        const keys = getApiKeys();
+        document.getElementById('cloudflare_email').value = keys.cloudflare_email;
+        document.getElementById('cloudflare_api_key').value = keys.cloudflare_api_key;
+        document.getElementById('registrar_api_url').value = keys.registrar_api_url;
+        document.getElementById('registrar_api_key').value = keys.registrar_api_key;
+    }
+}
+
+function showSettingsStatus(message, type) {
+    const statusDiv = document.getElementById('settingsStatus');
+    const className = type === 'success' ? 'success-message' : 'error-message';
+    statusDiv.innerHTML = `<div class="${className}">${message}</div>`;
+    setTimeout(() => {
+        statusDiv.innerHTML = '';
+    }, 3000);
+}
+
+function checkApiKeys() {
+    const keys = getApiKeys();
+    if (!keys.cloudflare_email || !keys.cloudflare_api_key || !keys.registrar_api_key) {
+        showError('⚠️ Сначала настройте API ключи в разделе "Настройки API"!');
+        return false;
+    }
+    return true;
+}
+
+// Загружаем настройки при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    loadApiSettings();
+});
+
 async function runStage(stageNumber) {
+    if (!checkApiKeys()) {
+        return;
+    }
+    
     const domains = document.getElementById('domains').value.trim().split('\n').filter(d => d.trim());
     const ipAddress = document.getElementById('ip_address').value.trim();
     
@@ -17,7 +139,10 @@ async function runStage(stageNumber) {
     
     try {
         let url = `/api/stage${stageNumber}`;
-        let data = { domains: domains };
+        let data = { 
+            domains: domains,
+            api_keys: getApiKeys()
+        };
         
         if (stageNumber === 1) {
             data.ip_address = ipAddress;
@@ -46,6 +171,10 @@ async function runStage(stageNumber) {
 }
 
 async function runAllStages() {
+    if (!checkApiKeys()) {
+        return;
+    }
+    
     const domains = document.getElementById('domains').value.trim().split('\n').filter(d => d.trim());
     const ipAddress = document.getElementById('ip_address').value.trim();
     
@@ -70,7 +199,8 @@ async function runAllStages() {
             },
             body: JSON.stringify({
                 domains: domains,
-                ip_address: ipAddress
+                ip_address: ipAddress,
+                api_keys: getApiKeys()
             })
         });
         

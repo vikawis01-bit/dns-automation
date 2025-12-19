@@ -13,23 +13,29 @@ API v2: https://www.ukraine.com.ua/domains/apiv2/
 import requests
 from config import REGISTRAR_API_URL, REGISTRAR_API_KEY
 
-def get_ukraine_headers():
+def get_ukraine_headers(api_keys=None):
     """Получение заголовков для API ukraine.com.ua - использует только API ключ"""
-    # API ukraine.com.ua использует Bearer Token с API ключом
+    # Если переданы ключи из запроса, используем их, иначе из конфига
+    if api_keys:
+        api_key = api_keys.get('registrar_api_key', '')
+    else:
+        api_key = REGISTRAR_API_KEY
+    
     return {
-        'Authorization': f'Bearer {REGISTRAR_API_KEY}',
+        'Authorization': f'Bearer {api_key}',
         'Content-Type': 'application/json',
         'Accept': 'application/json'
     }
 
-def ukraine_get_dns_records(domain):
+def ukraine_get_dns_records(domain, api_keys=None):
     """
     Получение DNS записей домена через API ukraine.com.ua
     
     API endpoint: GET /domains/{domain}/dns
     """
-    url = f"{REGISTRAR_API_URL}/domains/{domain}/dns"
-    headers = get_ukraine_headers()
+    api_url = api_keys.get('registrar_api_url', REGISTRAR_API_URL) if api_keys else REGISTRAR_API_URL
+    url = f"{api_url}/domains/{domain}/dns"
+    headers = get_ukraine_headers(api_keys)
     
     try:
         response = requests.get(url, headers=headers, timeout=30)
@@ -38,14 +44,15 @@ def ukraine_get_dns_records(domain):
     except requests.exceptions.RequestException as e:
         raise Exception(f"Ошибка получения DNS записей: {str(e)}")
 
-def ukraine_delete_dns_record(domain, record_id):
+def ukraine_delete_dns_record(domain, record_id, api_keys=None):
     """
     Удаление DNS записи через API ukraine.com.ua
     
     API endpoint: DELETE /domains/{domain}/dns/{record_id}
     """
-    url = f"{REGISTRAR_API_URL}/domains/{domain}/dns/{record_id}"
-    headers = get_ukraine_headers()
+    api_url = api_keys.get('registrar_api_url', REGISTRAR_API_URL) if api_keys else REGISTRAR_API_URL
+    url = f"{api_url}/domains/{domain}/dns/{record_id}"
+    headers = get_ukraine_headers(api_keys)
     
     try:
         response = requests.delete(url, headers=headers, timeout=30)
@@ -55,7 +62,7 @@ def ukraine_delete_dns_record(domain, record_id):
         # Игнорируем ошибки удаления, если запись уже не существует
         return False
 
-def ukraine_create_dns_record(domain, record_type, name, content, ttl=3600):
+def ukraine_create_dns_record(domain, record_type, name, content, ttl=3600, api_keys=None):
     """
     Создание DNS записи через API ukraine.com.ua
     
@@ -67,9 +74,11 @@ def ukraine_create_dns_record(domain, record_type, name, content, ttl=3600):
         name: имя записи (@ для корня домена)
         content: содержимое записи (IP для A записи)
         ttl: время жизни записи в секундах
+        api_keys: словарь с API ключами (опционально)
     """
-    url = f"{REGISTRAR_API_URL}/domains/{domain}/dns"
-    headers = get_ukraine_headers()
+    api_url = api_keys.get('registrar_api_url', REGISTRAR_API_URL) if api_keys else REGISTRAR_API_URL
+    url = f"{api_url}/domains/{domain}/dns"
+    headers = get_ukraine_headers(api_keys)
     
     data = {
         'type': record_type,
@@ -85,7 +94,7 @@ def ukraine_create_dns_record(domain, record_type, name, content, ttl=3600):
     except requests.exceptions.RequestException as e:
         raise Exception(f"Ошибка создания DNS записи: {str(e)}")
 
-def ukraine_update_nameservers(domain, nameservers):
+def ukraine_update_nameservers(domain, nameservers, api_keys=None):
     """
     Обновление NS записей через API ukraine.com.ua
     
@@ -94,9 +103,11 @@ def ukraine_update_nameservers(domain, nameservers):
     Args:
         domain: доменное имя
         nameservers: список nameservers от Cloudflare
+        api_keys: словарь с API ключами (опционально)
     """
-    url = f"{REGISTRAR_API_URL}/domains/{domain}/nameservers"
-    headers = get_ukraine_headers()
+    api_url = api_keys.get('registrar_api_url', REGISTRAR_API_URL) if api_keys else REGISTRAR_API_URL
+    url = f"{api_url}/domains/{domain}/nameservers"
+    headers = get_ukraine_headers(api_keys)
     
     # Формат может отличаться в зависимости от API
     # Попробуем оба варианта
@@ -122,17 +133,18 @@ def ukraine_update_nameservers(domain, nameservers):
     except requests.exceptions.RequestException as e:
         raise Exception(f"Ошибка обновления NS записей: {str(e)}")
 
-def ukraine_update_domain_a_record(domain, ip_address):
+def ukraine_update_domain_a_record(domain, ip_address, api_keys=None):
     """
     Обновление A записи домена: удаление всех записей и создание новой A записи
     
     Args:
         domain: доменное имя
         ip_address: IP адрес для A записи
+        api_keys: словарь с API ключами (опционально)
     """
     try:
         # Получаем все DNS записи
-        records_data = ukraine_get_dns_records(domain)
+        records_data = ukraine_get_dns_records(domain, api_keys)
         
         # Извлекаем список записей (структура может отличаться)
         records = []
@@ -150,10 +162,10 @@ def ukraine_update_domain_a_record(domain, ip_address):
                 record_id = record
             
             if record_id:
-                ukraine_delete_dns_record(domain, record_id)
+                ukraine_delete_dns_record(domain, record_id, api_keys)
         
         # Создаем новую A запись
-        result = ukraine_create_dns_record(domain, 'A', '@', ip_address, 3600)
+        result = ukraine_create_dns_record(domain, 'A', '@', ip_address, 3600, api_keys)
         return {'status': 'success', 'message': 'A запись успешно обновлена'}
         
     except Exception as e:

@@ -10,6 +10,39 @@
     <div class="container">
         <h1>Автоматизация DNS и Cloudflare</h1>
         
+        <!-- Секция настроек API -->
+        <div class="form-section" id="apiSettingsSection">
+            <h2>⚙️ Настройки API</h2>
+            <div class="api-settings">
+                <div class="settings-group">
+                    <h3>Cloudflare</h3>
+                    <div class="form-group">
+                        <label for="cloudflare_email">Email:</label>
+                        <input type="email" id="cloudflare_email" placeholder="your@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="cloudflare_api_key">Global API Key:</label>
+                        <input type="password" id="cloudflare_api_key" placeholder="Ваш Global API Key">
+                        <small>Найдите в: Profile → API Tokens → Global API Key</small>
+                    </div>
+                </div>
+                
+                <div class="settings-group">
+                    <h3>Ukraine.com.ua</h3>
+                    <div class="form-group">
+                        <label for="registrar_api_url">API URL:</label>
+                        <input type="text" id="registrar_api_url" value="https://api.ukraine.com.ua/v2" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="registrar_api_key">API Key:</label>
+                        <input type="password" id="registrar_api_key" placeholder="Ваш API ключ от ukraine.com.ua">
+                    </div>
+                </div>
+            </div>
+            <button type="button" onclick="saveApiSettings()" class="btn-save">💾 Сохранить настройки</button>
+            <div id="settingsStatus" style="margin-top: 10px;"></div>
+        </div>
+        
         <div class="form-section">
             <h2>Введите данные</h2>
             <form id="mainForm">

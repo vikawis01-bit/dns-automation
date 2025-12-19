@@ -4,8 +4,9 @@ import requests
 import json
 import os
 from config import (
-    CLOUDFLARE_API_TOKEN, CLOUDFLARE_EMAIL, CLOUDFLARE_API_KEY,
-    CLOUDFLARE_API_BASE, REGISTRAR_API_URL, REGISTRAR_API_KEY, REGISTRAR_API_SECRET
+    CLOUDFLARE_EMAIL, CLOUDFLARE_API_KEY,
+    CLOUDFLARE_API_BASE, REGISTRAR_API_URL, REGISTRAR_API_KEY,
+    load_settings_from_file, save_settings_to_file
 )
 from ukraine_registrar import (
     get_ukraine_headers,
@@ -15,20 +16,23 @@ from ukraine_registrar import (
     ukraine_update_nameservers,
     ukraine_update_domain_a_record
 )
-from ukraine_registrar import (
-    ukraine_get_dns_records, ukraine_delete_dns_record, ukraine_create_dns_record,
-    ukraine_update_nameservers, get_ukraine_headers
-)
 
 app = Flask(__name__)
 CORS(app)
 
-def get_cloudflare_headers():
+def get_cloudflare_headers(api_keys=None):
     """Get Cloudflare API headers - использует Global API Key"""
-    # Используем Global API Key (Email + API Key)
+    # Если переданы ключи из запроса, используем их, иначе из конфига
+    if api_keys:
+        email = api_keys.get('cloudflare_email', '')
+        api_key = api_keys.get('cloudflare_api_key', '')
+    else:
+        email = CLOUDFLARE_EMAIL
+        api_key = CLOUDFLARE_API_KEY
+    
     return {
-        'X-Auth-Email': CLOUDFLARE_EMAIL,
-        'X-Auth-Key': CLOUDFLARE_API_KEY,
+        'X-Auth-Email': email,
+        'X-Auth-Key': api_key,
         'Content-Type': 'application/json'
     }
 
@@ -40,22 +44,84 @@ def get_registrar_headers():
 def index():
     return render_template('index.html')
 
+@app.route('/settings')
+def settings():
+    return render_template('settings.html')
+
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    """Получение текущих настроек"""
+    settings = load_settings_from_file()
+    # Не возвращаем полные ключи для безопасности, только частично
+    return jsonify({
+        'cloudflare_email': settings.get('CLOUDFLARE_EMAIL', ''),
+        'cloudflare_api_key': settings.get('CLOUDFLARE_API_KEY', ''),
+        'registrar_api_url': settings.get('REGISTRAR_API_URL', 'https://api.ukraine.com.ua/v2'),
+        'registrar_api_key': settings.get('REGISTRAR_API_KEY', '')
+    })
+
+@app.route('/api/settings', methods=['POST'])
+def save_settings():
+    """Сохранение настроек"""
+    try:
+        data = request.json
+        
+        # Валидация
+        if not data.get('cloudflare_email') or not data.get('cloudflare_api_key'):
+            return jsonify({'error': 'Заполните все поля Cloudflare'}), 400
+        
+        if not data.get('registrar_api_url') or not data.get('registrar_api_key'):
+            return jsonify({'error': 'Заполните все поля Ukraine.com.ua'}), 400
+        
+        # Сохраняем настройки
+        settings = {
+            'CLOUDFLARE_EMAIL': data.get('cloudflare_email'),
+            'CLOUDFLARE_API_KEY': data.get('cloudflare_api_key'),
+            'REGISTRAR_API_URL': data.get('registrar_api_url'),
+            'REGISTRAR_API_KEY': data.get('registrar_api_key')
+        }
+        
+        save_settings_to_file(settings)
+        
+        # Обновляем конфигурацию в памяти
+        global CLOUDFLARE_EMAIL, CLOUDFLARE_API_KEY, REGISTRAR_API_URL, REGISTRAR_API_KEY
+        import config
+        config.CLOUDFLARE_EMAIL = settings['CLOUDFLARE_EMAIL']
+        config.CLOUDFLARE_API_KEY = settings['CLOUDFLARE_API_KEY']
+        config.REGISTRAR_API_URL = settings['REGISTRAR_API_URL']
+        config.REGISTRAR_API_KEY = settings['REGISTRAR_API_KEY']
+        
+        # Обновляем в ukraine_registrar
+        from ukraine_registrar import REGISTRAR_API_URL as U_REG_URL, REGISTRAR_API_KEY as U_REG_KEY
+        import ukraine_registrar
+        ukraine_registrar.REGISTRAR_API_URL = settings['REGISTRAR_API_URL']
+        ukraine_registrar.REGISTRAR_API_KEY = settings['REGISTRAR_API_KEY']
+        
+        return jsonify({'success': True, 'message': 'Настройки сохранены'})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/stage1', methods=['POST'])
 def stage1():
     """Этап 1: Изменение A записей у регистратора"""
     data = request.json
     domains = data.get('domains', [])
     ip_address = data.get('ip_address', '')
+    api_keys = data.get('api_keys', {})
     
     if not domains or not ip_address:
         return jsonify({'error': 'Домены и IP адрес обязательны'}), 400
+    
+    if not api_keys.get('registrar_api_key'):
+        return jsonify({'error': 'API ключи не настроены. Заполните настройки API.'}), 400
     
     results = []
     
     for domain in domains:
         try:
             # Используем функцию для обновления A записи через API ukraine.com.ua
-            ukraine_update_domain_a_record(domain, ip_address)
+            ukraine_update_domain_a_record(domain, ip_address, api_keys)
             
             results.append({
                 'domain': domain,
@@ -77,12 +143,16 @@ def stage2():
     """Этап 2: Добавление доменов в Cloudflare с импортом A записей"""
     data = request.json
     domains = data.get('domains', [])
+    api_keys = data.get('api_keys', {})
     
     if not domains:
         return jsonify({'error': 'Домены обязательны'}), 400
     
+    if not api_keys.get('cloudflare_email') or not api_keys.get('cloudflare_api_key'):
+        return jsonify({'error': 'API ключи Cloudflare не настроены. Заполните настройки API.'}), 400
+    
     results = []
-    headers = get_cloudflare_headers()
+    headers = get_cloudflare_headers(api_keys)
     
     for domain in domains:
         try:
@@ -154,12 +224,19 @@ def stage3():
     """Этап 3: Получение NS из Cloudflare и обновление у регистратора"""
     data = request.json
     domains = data.get('domains', [])
+    api_keys = data.get('api_keys', {})
     
     if not domains:
         return jsonify({'error': 'Домены обязательны'}), 400
     
+    if not api_keys.get('cloudflare_email') or not api_keys.get('cloudflare_api_key'):
+        return jsonify({'error': 'API ключи Cloudflare не настроены. Заполните настройки API.'}), 400
+    
+    if not api_keys.get('registrar_api_key'):
+        return jsonify({'error': 'API ключи Ukraine.com.ua не настроены. Заполните настройки API.'}), 400
+    
     results = []
-    headers = get_cloudflare_headers()
+    headers = get_cloudflare_headers(api_keys)
     
     for domain in domains:
         try:
@@ -203,7 +280,7 @@ def stage3():
                     continue
                 
                 # Обновляем NS записи у регистратора через API ukraine.com.ua
-                ukraine_update_nameservers(domain, nameservers)
+                ukraine_update_nameservers(domain, nameservers, api_keys)
                 
                 results.append({
                     'domain': domain,
@@ -232,12 +309,16 @@ def stage4():
     """Этап 4: Настройка TLS и Always HTTPS в Cloudflare"""
     data = request.json
     domains = data.get('domains', [])
+    api_keys = data.get('api_keys', {})
     
     if not domains:
         return jsonify({'error': 'Домены обязательны'}), 400
     
+    if not api_keys.get('cloudflare_email') or not api_keys.get('cloudflare_api_key'):
+        return jsonify({'error': 'API ключи Cloudflare не настроены. Заполните настройки API.'}), 400
+    
     results = []
-    headers = get_cloudflare_headers()
+    headers = get_cloudflare_headers(api_keys)
     
     for domain in domains:
         try:
@@ -308,9 +389,16 @@ def run_all():
     data = request.json
     domains = data.get('domains', [])
     ip_address = data.get('ip_address', '')
+    api_keys = data.get('api_keys', {})
     
     if not domains or not ip_address:
         return jsonify({'error': 'Домены и IP адрес обязательны'}), 400
+    
+    if not api_keys.get('cloudflare_email') or not api_keys.get('cloudflare_api_key'):
+        return jsonify({'error': 'API ключи Cloudflare не настроены. Заполните настройки API.'}), 400
+    
+    if not api_keys.get('registrar_api_key'):
+        return jsonify({'error': 'API ключи Ukraine.com.ua не настроены. Заполните настройки API.'}), 400
     
     all_results = {
         'stage1': None,
@@ -319,25 +407,36 @@ def run_all():
         'stage4': None
     }
     
-    # Этап 1
-    stage1_data = {'domains': domains, 'ip_address': ip_address}
-    stage1_result = stage1()
-    all_results['stage1'] = stage1_result.get_json()
-    
-    # Этап 2
-    stage2_data = {'domains': domains}
-    stage2_result = stage2()
-    all_results['stage2'] = stage2_result.get_json()
-    
-    # Этап 3
-    stage3_data = {'domains': domains}
-    stage3_result = stage3()
-    all_results['stage3'] = stage3_result.get_json()
-    
-    # Этап 4
-    stage4_data = {'domains': domains}
-    stage4_result = stage4()
-    all_results['stage4'] = stage4_result.get_json()
+    # Используем test_client для вызова эндпоинтов
+    with app.test_client() as client:
+        # Этап 1
+        stage1_response = client.post('/api/stage1', json={
+            'domains': domains,
+            'ip_address': ip_address,
+            'api_keys': api_keys
+        })
+        all_results['stage1'] = stage1_response.get_json()
+        
+        # Этап 2
+        stage2_response = client.post('/api/stage2', json={
+            'domains': domains,
+            'api_keys': api_keys
+        })
+        all_results['stage2'] = stage2_response.get_json()
+        
+        # Этап 3
+        stage3_response = client.post('/api/stage3', json={
+            'domains': domains,
+            'api_keys': api_keys
+        })
+        all_results['stage3'] = stage3_response.get_json()
+        
+        # Этап 4
+        stage4_response = client.post('/api/stage4', json={
+            'domains': domains,
+            'api_keys': api_keys
+        })
+        all_results['stage4'] = stage4_response.get_json()
     
     return jsonify(all_results)
 
