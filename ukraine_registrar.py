@@ -348,29 +348,38 @@ def ukraine_update_domain_a_record(domain, ip_address, api_keys=None):
         api_keys: словарь с API ключами (опционально)
     """
     try:
-        # Получаем все DNS записи
-        records_data = ukraine_get_dns_records(domain, api_keys)
-        
-        # Извлекаем список записей (структура может отличаться)
-        records = []
-        if isinstance(records_data, dict):
-            # Пробуем разные варианты структуры ответа
-            records = records_data.get('result', records_data.get('data', records_data.get('records', [])))
-            if isinstance(records, dict):
-                records = records.get('list', [])
-        elif isinstance(records_data, list):
-            records = records_data
-        
-        # Удаляем все существующие записи
-        for record in records:
-            record_id = None
-            if isinstance(record, dict):
-                record_id = record.get('subdomain_id', record.get('id', record.get('record_id', record.get('_id'))))
-            elif isinstance(record, str):
-                record_id = record
+        # Сначала пытаемся получить список записей для удаления
+        try:
+            records_data = ukraine_get_dns_records(domain, api_keys)
             
-            if record_id:
-                ukraine_delete_dns_record(domain, record_id, api_keys)
+            # Извлекаем список записей (структура может отличаться)
+            records = []
+            if isinstance(records_data, dict):
+                # Пробуем разные варианты структуры ответа
+                records = records_data.get('result', records_data.get('data', records_data.get('records', [])))
+                if isinstance(records, dict):
+                    records = records.get('list', [])
+            elif isinstance(records_data, list):
+                records = records_data
+            
+            # Удаляем все существующие записи
+            for record in records:
+                record_id = None
+                if isinstance(record, dict):
+                    record_id = record.get('subdomain_id', record.get('id', record.get('record_id', record.get('_id'))))
+                elif isinstance(record, str):
+                    record_id = record
+                
+                if record_id:
+                    ukraine_delete_dns_record(domain, record_id, api_keys)
+        except Exception as get_error:
+            # Если не удалось получить список, пробуем создать запись напрямую
+            # Возможно API позволяет создавать запись без предварительного удаления
+            if '400' in str(get_error) or 'Bad Request' in str(get_error):
+                # Если ошибка 400 при получении списка, пробуем создать запись напрямую
+                pass
+            else:
+                raise
         
         # Создаем новую A запись для корня домена
         result = ukraine_create_dns_record(domain, 'A', '@', ip_address, 3600, api_keys)
