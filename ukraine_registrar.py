@@ -73,52 +73,68 @@ def ukraine_get_dns_records(domain, api_keys=None):
         api_keys: словарь с API ключами (опционально)
     """
     api_base = get_ukraine_api_base(api_keys)
-    url = f"{api_base}/dns/record_list/"
+    
+    # Пробуем разные варианты endpoints
+    endpoints = [
+        f"{api_base}/dns/record_list/",
+        f"{api_base}/dns/record_list",
+        f"{api_base}/dns/list/",
+        f"{api_base}/dns/records/",
+    ]
+    
+    headers = get_ukraine_headers(api_keys)
     
     # Параметры GET запроса
     get_params = {
         'domain': domain
     }
     
-    url_with_params = f"{url}?{urlencode(get_params)}"
-    headers = get_ukraine_headers(api_keys)
-    
-    # POST данные - для получения списка может быть пустым массивом или пустой строкой
-    # Пробуем разные варианты
+    # POST данные - пробуем разные варианты
     post_data_variants = [
         '',  # Пустая строка
         urlencode({}),  # Пустой объект как query string
+        None,  # Без данных вообще
     ]
     
     last_error = None
-    for post_data in post_data_variants:
-        try:
-            response = requests.post(
-                url_with_params,
-                headers=headers,
-                data=post_data,
-                timeout=30
-            )
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            last_error = e
-            # Если 400 ошибка, пробуем следующий вариант
-            if '400' in str(e):
-                continue
-            # Для других ошибок сразу выбрасываем исключение
-            raise Exception(f"Ошибка получения DNS записей: {str(e)}")
+    for endpoint_url in endpoints:
+        url_with_params = f"{endpoint_url}?{urlencode(get_params)}"
+        
+        for post_data in post_data_variants:
+            try:
+                if post_data is None:
+                    # Пробуем без POST данных вообще
+                    response = requests.post(
+                        url_with_params,
+                        headers=headers,
+                        timeout=30
+                    )
+                else:
+                    response = requests.post(
+                        url_with_params,
+                        headers=headers,
+                        data=post_data,
+                        timeout=30
+                    )
+                
+                response.raise_for_status()
+                return response.json()
+            except requests.exceptions.RequestException as e:
+                last_error = e
+                # Если 400 ошибка, пробуем следующий вариант
+                if '400' in str(e) or 'Bad Request' in str(e):
+                    continue
+                # Для других ошибок пробуем следующий endpoint
+                break
     
     # Если все варианты не сработали
     error_msg = str(last_error) if last_error else "Неизвестная ошибка"
     
     # Более понятные сообщения об ошибках
     if '400' in error_msg or 'Bad Request' in error_msg:
-        raise Exception(f"Ошибка 400 Bad Request. Возможные причины:\n"
-                       f"1. Токен не активирован в панели управления (API → Данные доступа)\n"
-                       f"2. Неправильный формат токена\n"
-                       f"3. Домен не принадлежит вашему аккаунту\n"
-                       f"4. Ограничение доступа по IP (добавьте IP сервера в белый список)\n"
+        raise Exception(f"Ошибка 400 Bad Request при запросе к dns/record_list.\n"
+                       f"Проверьте документацию API в панели управления (API → Документация).\n"
+                       f"Возможно endpoint или формат запроса отличается.\n"
                        f"Техническая ошибка: {error_msg}")
     elif '401' in error_msg or 'Unauthorized' in error_msg:
         raise Exception(f"Ошибка авторизации (401). Проверьте правильность токена. Ошибка: {error_msg}")
