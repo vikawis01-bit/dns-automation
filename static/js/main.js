@@ -64,31 +64,56 @@ async function loadApiSettings() {
         const response = await fetch('/api/settings');
         const result = await response.json();
         
+        // Правильный URL по умолчанию
+        const defaultApiUrl = 'https://adm.tools/action';
+        
         if (result.cloudflare_email) {
             document.getElementById('cloudflare_email').value = result.cloudflare_email;
             document.getElementById('cloudflare_api_key').value = result.cloudflare_api_key || '';
-            document.getElementById('registrar_api_url').value = result.registrar_api_url || 'https://adm.tools/action';
+            
+            // Если сохранен старый URL, заменяем на правильный
+            let apiUrl = result.registrar_api_url || defaultApiUrl;
+            if (apiUrl.includes('ukraine.com.ua/api') || apiUrl.includes('api.ukraine.com.ua')) {
+                apiUrl = defaultApiUrl;
+            }
+            document.getElementById('registrar_api_url').value = apiUrl;
             document.getElementById('registrar_api_key').value = result.registrar_api_key || '';
             
-            // Сохраняем в localStorage
+            // Сохраняем в localStorage с правильным URL
             localStorage.setItem('cloudflare_email', result.cloudflare_email);
             localStorage.setItem('cloudflare_api_key', result.cloudflare_api_key || '');
-            localStorage.setItem('registrar_api_url', result.registrar_api_url || 'https://adm.tools/action');
+            localStorage.setItem('registrar_api_url', apiUrl);
             localStorage.setItem('registrar_api_key', result.registrar_api_key || '');
         } else {
             // Если на сервере нет, загружаем из localStorage
             const keys = getApiKeys();
             document.getElementById('cloudflare_email').value = keys.cloudflare_email;
             document.getElementById('cloudflare_api_key').value = keys.cloudflare_api_key;
-            document.getElementById('registrar_api_url').value = keys.registrar_api_url;
+            
+            // Если в localStorage старый URL, заменяем на правильный
+            let apiUrl = keys.registrar_api_url || defaultApiUrl;
+            if (apiUrl.includes('ukraine.com.ua/api') || apiUrl.includes('api.ukraine.com.ua')) {
+                apiUrl = defaultApiUrl;
+                localStorage.setItem('registrar_api_url', apiUrl);
+            }
+            document.getElementById('registrar_api_url').value = apiUrl;
             document.getElementById('registrar_api_key').value = keys.registrar_api_key;
         }
     } catch (error) {
         // Если ошибка, загружаем из localStorage
         const keys = getApiKeys();
+        const defaultApiUrl = 'https://adm.tools/action';
+        
         document.getElementById('cloudflare_email').value = keys.cloudflare_email;
         document.getElementById('cloudflare_api_key').value = keys.cloudflare_api_key;
-        document.getElementById('registrar_api_url').value = keys.registrar_api_url;
+        
+        // Если в localStorage старый URL, заменяем на правильный
+        let apiUrl = keys.registrar_api_url || defaultApiUrl;
+        if (apiUrl.includes('ukraine.com.ua/api') || apiUrl.includes('api.ukraine.com.ua')) {
+            apiUrl = defaultApiUrl;
+            localStorage.setItem('registrar_api_url', apiUrl);
+        }
+        document.getElementById('registrar_api_url').value = apiUrl;
         document.getElementById('registrar_api_key').value = keys.registrar_api_key;
     }
 }
