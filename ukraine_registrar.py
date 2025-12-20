@@ -38,6 +38,9 @@ def get_ukraine_headers(api_keys=None):
     else:
         api_key = REGISTRAR_API_KEY
     
+    if not api_key:
+        raise Exception("API токен не указан. Заполните настройки API.")
+    
     return {
         'Authorization': f'Bearer {api_key}',
         'Content-Type': 'application/x-www-form-urlencoded',
