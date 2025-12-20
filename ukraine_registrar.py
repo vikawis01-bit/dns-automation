@@ -216,12 +216,20 @@ def ukraine_update_nameservers(domain, nameservers, api_keys=None):
     api_url = api_keys.get('registrar_api_url', REGISTRAR_API_URL) if api_keys else REGISTRAR_API_URL
     api_url = api_url.rstrip('/')
     
-    # Пробуем разные варианты endpoints
-    endpoints = [
-        f"{api_url}/domains/{domain}/nameservers",
-        f"{api_url}/api/v2/domains/{domain}/nameservers",
-        f"{api_url}/v2/domains/{domain}/nameservers",
-    ]
+    # Определяем, есть ли уже /v2 или /api/v2 в базовом URL
+    has_v2 = '/v2' in api_url or '/api/v2' in api_url
+    
+    # Пробуем разные варианты endpoints (избегаем дублирования /v2)
+    if has_v2:
+        endpoints = [
+            f"{api_url}/domains/{domain}/nameservers",
+        ]
+    else:
+        endpoints = [
+            f"{api_url}/domains/{domain}/nameservers",
+            f"{api_url}/api/v2/domains/{domain}/nameservers",
+            f"{api_url}/v2/domains/{domain}/nameservers",
+        ]
     
     headers = get_ukraine_headers(api_keys)
     
