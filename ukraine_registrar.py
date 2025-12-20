@@ -1,31 +1,58 @@
 """
 Модуль для работы с API регистратора ukraine.com.ua
-API v2: https://www.ukraine.com.ua/domains/apiv2/
 
-ВАЖНО: Структура API может отличаться от ожидаемой.
-Если возникают ошибки, проверьте документацию API и адаптируйте функции:
+Официальные ресурсы:
+- GitHub: https://github.com/ukraine-com-ua/API
+- Документация: https://www.ukraine.com.ua/ru/wiki/account/api/
+- Документация в панели: Раздел "API" → "Документация"
+
+ВАЖНО:
+1. Токен нужно активировать в панели управления (раздел "API" → "Данные доступа")
+2. Токен действует 6 месяцев с момента последнего использования
+3. Рекомендуется настроить ограничение доступа по IP
+4. Лимиты: 300 запросов/час, 5000/сутки
+
+Если возникают ошибки, проверьте:
+- Правильность URL API (может отличаться, проверьте в панели)
 - Формат ответов API (JSON структура)
 - Названия полей (id, record_id, _id и т.д.)
 - Формат данных для создания/обновления записей
-- Схему аутентификации (Basic Auth, Bearer Token и т.д.)
+- Схему аутентификации (Bearer Token, X-API-Key и т.д.)
 """
 
 import requests
 from config import REGISTRAR_API_URL, REGISTRAR_API_KEY
 
 def get_ukraine_headers(api_keys=None):
-    """Получение заголовков для API ukraine.com.ua - использует только API ключ"""
+    """
+    Получение заголовков для API ukraine.com.ua
+    
+    Согласно документации: https://www.ukraine.com.ua/ru/wiki/account/api/
+    API использует токен, который нужно активировать в панели управления.
+    Токен действует 6 месяцев с момента последнего использования.
+    
+    Возможные форматы авторизации:
+    - Bearer Token (Authorization: Bearer {token})
+    - API Key в заголовке (X-API-Key: {key})
+    """
     # Если переданы ключи из запроса, используем их, иначе из конфига
     if api_keys:
         api_key = api_keys.get('registrar_api_key', '')
     else:
         api_key = REGISTRAR_API_KEY
     
-    return {
+    # Пробуем разные варианты авторизации
+    # Сначала Bearer Token (стандартный)
+    headers = {
         'Authorization': f'Bearer {api_key}',
         'Content-Type': 'application/json',
         'Accept': 'application/json'
     }
+    
+    # Также добавляем X-API-Key на случай если используется такой формат
+    headers['X-API-Key'] = api_key
+    
+    return headers
 
 def ukraine_get_dns_records(domain, api_keys=None):
     """
