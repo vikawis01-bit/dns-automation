@@ -70,12 +70,24 @@ def ukraine_get_dns_records(domain, api_keys=None):
     # Убираем слэш в конце если есть
     api_url = api_url.rstrip('/')
     
-    # Пробуем разные варианты endpoints
-    endpoints = [
-        f"{api_url}/domains/{domain}/dns",
-        f"{api_url}/api/v2/domains/{domain}/dns",
-        f"{api_url}/v2/domains/{domain}/dns",
-    ]
+    # Определяем, есть ли уже /v2 или /api/v2 в базовом URL
+    has_v2 = '/v2' in api_url or '/api/v2' in api_url
+    
+    # Пробуем разные варианты endpoints (избегаем дублирования /v2)
+    if has_v2:
+        # Если в базовом URL уже есть /v2, не добавляем его снова
+        endpoints = [
+            f"{api_url}/domains/{domain}/dns",
+            f"{api_url}/domains/{domain}/dns-records",
+        ]
+    else:
+        # Если в базовом URL нет /v2, пробуем разные варианты
+        endpoints = [
+            f"{api_url}/domains/{domain}/dns",
+            f"{api_url}/api/v2/domains/{domain}/dns",
+            f"{api_url}/v2/domains/{domain}/dns",
+            f"{api_url}/domains/{domain}/dns-records",
+        ]
     
     headers = get_ukraine_headers(api_keys)
     
@@ -104,12 +116,20 @@ def ukraine_delete_dns_record(domain, record_id, api_keys=None):
     api_url = api_keys.get('registrar_api_url', REGISTRAR_API_URL) if api_keys else REGISTRAR_API_URL
     api_url = api_url.rstrip('/')
     
-    # Пробуем разные варианты endpoints
-    endpoints = [
-        f"{api_url}/domains/{domain}/dns/{record_id}",
-        f"{api_url}/api/v2/domains/{domain}/dns/{record_id}",
-        f"{api_url}/v2/domains/{domain}/dns/{record_id}",
-    ]
+    # Определяем, есть ли уже /v2 или /api/v2 в базовом URL
+    has_v2 = '/v2' in api_url or '/api/v2' in api_url
+    
+    # Пробуем разные варианты endpoints (избегаем дублирования /v2)
+    if has_v2:
+        endpoints = [
+            f"{api_url}/domains/{domain}/dns/{record_id}",
+        ]
+    else:
+        endpoints = [
+            f"{api_url}/domains/{domain}/dns/{record_id}",
+            f"{api_url}/api/v2/domains/{domain}/dns/{record_id}",
+            f"{api_url}/v2/domains/{domain}/dns/{record_id}",
+        ]
     
     headers = get_ukraine_headers(api_keys)
     
@@ -143,12 +163,20 @@ def ukraine_create_dns_record(domain, record_type, name, content, ttl=3600, api_
     api_url = api_keys.get('registrar_api_url', REGISTRAR_API_URL) if api_keys else REGISTRAR_API_URL
     api_url = api_url.rstrip('/')
     
-    # Пробуем разные варианты endpoints
-    endpoints = [
-        f"{api_url}/domains/{domain}/dns",
-        f"{api_url}/api/v2/domains/{domain}/dns",
-        f"{api_url}/v2/domains/{domain}/dns",
-    ]
+    # Определяем, есть ли уже /v2 или /api/v2 в базовом URL
+    has_v2 = '/v2' in api_url or '/api/v2' in api_url
+    
+    # Пробуем разные варианты endpoints (избегаем дублирования /v2)
+    if has_v2:
+        endpoints = [
+            f"{api_url}/domains/{domain}/dns",
+        ]
+    else:
+        endpoints = [
+            f"{api_url}/domains/{domain}/dns",
+            f"{api_url}/api/v2/domains/{domain}/dns",
+            f"{api_url}/v2/domains/{domain}/dns",
+        ]
     
     headers = get_ukraine_headers(api_keys)
     
