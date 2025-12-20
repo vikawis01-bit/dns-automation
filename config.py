@@ -45,8 +45,9 @@ _settings = load_settings_from_file()
 CLOUDFLARE_EMAIL = _settings.get('CLOUDFLARE_EMAIL', '')
 CLOUDFLARE_API_KEY = _settings.get('CLOUDFLARE_API_KEY', '')
 
-# Ukraine.com.ua API credentials - только API ключ
-REGISTRAR_API_URL = _settings.get('REGISTRAR_API_URL', 'https://www.ukraine.com.ua/api/v2')
+# Ukraine.com.ua API credentials - только API ключ (токен)
+# Базовый URL: https://adm.tools/action/
+REGISTRAR_API_URL = _settings.get('REGISTRAR_API_URL', 'https://adm.tools/action')
 REGISTRAR_API_KEY = _settings.get('REGISTRAR_API_KEY', '')
 
 # Cloudflare API base URL

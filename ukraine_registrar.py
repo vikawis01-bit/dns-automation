@@ -4,7 +4,7 @@
 Официальные ресурсы:
 - GitHub: https://github.com/ukraine-com-ua/API
 - Документация: https://www.ukraine.com.ua/ru/wiki/account/api/
-- Документация в панели: Раздел "API" → "Документация"
+- Базовый URL API: https://adm.tools/action/
 
 ВАЖНО:
 1. Токен нужно активировать в панели управления (раздел "API" → "Данные доступа")
@@ -12,28 +12,25 @@
 3. Рекомендуется настроить ограничение доступа по IP
 4. Лимиты: 300 запросов/час, 5000/сутки
 
-Если возникают ошибки, проверьте:
-- Правильность URL API (может отличаться, проверьте в панели)
-- Формат ответов API (JSON структура)
-- Названия полей (id, record_id, _id и т.д.)
-- Формат данных для создания/обновления записей
-- Схему аутентификации (Bearer Token, X-API-Key и т.д.)
+Формат API:
+- Базовый URL: https://adm.tools/action/
+- Авторизация: Authorization: Bearer {token}
+- Метод: POST
+- Данные: POST в формате http_build_query, параметры в GET
 """
 
 import requests
+from urllib.parse import urlencode
 from config import REGISTRAR_API_URL, REGISTRAR_API_KEY
+
+# Базовый URL API ukraine.com.ua
+UKRAINE_API_BASE = 'https://adm.tools/action'
 
 def get_ukraine_headers(api_keys=None):
     """
     Получение заголовков для API ukraine.com.ua
     
-    Согласно документации: https://www.ukraine.com.ua/ru/wiki/account/api/
-    API использует токен, который нужно активировать в панели управления.
-    Токен действует 6 месяцев с момента последнего использования.
-    
-    Возможные форматы авторизации:
-    - Bearer Token (Authorization: Bearer {token})
-    - API Key в заголовке (X-API-Key: {key})
+    Формат: Authorization: Bearer {token}
     """
     # Если переданы ключи из запроса, используем их, иначе из конфига
     if api_keys:
@@ -41,228 +38,253 @@ def get_ukraine_headers(api_keys=None):
     else:
         api_key = REGISTRAR_API_KEY
     
-    # Пробуем разные варианты авторизации
-    # Сначала Bearer Token (стандартный)
-    headers = {
+    return {
         'Authorization': f'Bearer {api_key}',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Content-Type': 'application/x-www-form-urlencoded',
     }
+
+def get_ukraine_api_base(api_keys=None):
+    """Получение базового URL API"""
+    if api_keys:
+        api_url = api_keys.get('registrar_api_url', UKRAINE_API_BASE)
+    else:
+        api_url = REGISTRAR_API_URL if REGISTRAR_API_URL else UKRAINE_API_BASE
     
-    # Также добавляем X-API-Key на случай если используется такой формат
-    headers['X-API-Key'] = api_key
+    # Если URL не содержит базовый путь, используем стандартный
+    if 'adm.tools' not in api_url:
+        api_url = UKRAINE_API_BASE
     
-    return headers
+    return api_url.rstrip('/')
 
 def ukraine_get_dns_records(domain, api_keys=None):
     """
     Получение DNS записей домена через API ukraine.com.ua
     
-    API endpoint: GET /domains/{domain}/dns
+    API endpoint: dns/record_list
     
-    Возможные варианты URL:
-    - https://www.ukraine.com.ua/api/v2
-    - https://api.ukraine.com.ua/v2
-    - https://ukraine.com.ua/api/v2
+    Args:
+        domain: доменное имя
+        api_keys: словарь с API ключами (опционально)
     """
-    api_url = api_keys.get('registrar_api_url', REGISTRAR_API_URL) if api_keys else REGISTRAR_API_URL
+    api_base = get_ukraine_api_base(api_keys)
+    url = f"{api_base}/dns/record_list/"
     
-    # Убираем слэш в конце если есть
-    api_url = api_url.rstrip('/')
+    # Параметры GET запроса
+    get_params = {
+        'domain': domain
+    }
     
-    # Определяем, есть ли уже /v2 или /api/v2 в базовом URL
-    has_v2 = '/v2' in api_url or '/api/v2' in api_url
-    
-    # Пробуем разные варианты endpoints (избегаем дублирования /v2)
-    if has_v2:
-        # Если в базовом URL уже есть /v2, не добавляем его снова
-        endpoints = [
-            f"{api_url}/domains/{domain}/dns",
-            f"{api_url}/domains/{domain}/dns-records",
-        ]
-    else:
-        # Если в базовом URL нет /v2, пробуем разные варианты
-        endpoints = [
-            f"{api_url}/domains/{domain}/dns",
-            f"{api_url}/api/v2/domains/{domain}/dns",
-            f"{api_url}/v2/domains/{domain}/dns",
-            f"{api_url}/domains/{domain}/dns-records",
-        ]
-    
+    url_with_params = f"{url}?{urlencode(get_params)}"
     headers = get_ukraine_headers(api_keys)
     
-    last_error = None
-    for url in endpoints:
-        try:
-            response = requests.get(url, headers=headers, timeout=30)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            last_error = e
-            continue
+    # POST данные (обычно пустые для получения списка)
+    post_data = {}
     
-    # Если все варианты не сработали
-    error_msg = str(last_error) if last_error else "Неизвестная ошибка"
-    if "Failed to resolve" in error_msg or "Name or service not known" in error_msg:
-        raise Exception(f"Не удается подключиться к API ukraine.com.ua. Проверьте правильность URL API. Текущий URL: {api_url}. Ошибка: {error_msg}")
-    raise Exception(f"Ошибка получения DNS записей: {error_msg}")
+    try:
+        response = requests.post(
+            url_with_params,
+            headers=headers,
+            data=urlencode(post_data),
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Ошибка получения DNS записей: {str(e)}")
 
 def ukraine_delete_dns_record(domain, record_id, api_keys=None):
     """
     Удаление DNS записи через API ukraine.com.ua
     
-    API endpoint: DELETE /domains/{domain}/dns/{record_id}
+    API endpoint: dns/record_delete
+    
+    Args:
+        domain: доменное имя
+        record_id: ID записи для удаления (subdomain_id)
+        api_keys: словарь с API ключами (опционально)
     """
-    api_url = api_keys.get('registrar_api_url', REGISTRAR_API_URL) if api_keys else REGISTRAR_API_URL
-    api_url = api_url.rstrip('/')
+    api_base = get_ukraine_api_base(api_keys)
+    url = f"{api_base}/dns/record_delete/"
     
-    # Определяем, есть ли уже /v2 или /api/v2 в базовом URL
-    has_v2 = '/v2' in api_url or '/api/v2' in api_url
+    # Параметры GET запроса
+    get_params = {
+        'domain': domain
+    }
     
-    # Пробуем разные варианты endpoints (избегаем дублирования /v2)
-    if has_v2:
-        endpoints = [
-            f"{api_url}/domains/{domain}/dns/{record_id}",
-        ]
-    else:
-        endpoints = [
-            f"{api_url}/domains/{domain}/dns/{record_id}",
-            f"{api_url}/api/v2/domains/{domain}/dns/{record_id}",
-            f"{api_url}/v2/domains/{domain}/dns/{record_id}",
-        ]
-    
+    url_with_params = f"{url}?{urlencode(get_params)}"
     headers = get_ukraine_headers(api_keys)
     
-    for url in endpoints:
-        try:
-            response = requests.delete(url, headers=headers, timeout=30)
-            if response.status_code in [200, 204, 404]:
-                return True
-            response.raise_for_status()
-            return True
-        except requests.exceptions.RequestException:
-            continue
+    # POST данные
+    post_data = {
+        'subdomain_id': record_id
+    }
     
-    # Игнорируем ошибки удаления, если запись уже не существует
-    return False
+    try:
+        response = requests.post(
+            url_with_params,
+            headers=headers,
+            data=urlencode(post_data),
+            timeout=30
+        )
+        response.raise_for_status()
+        result = response.json()
+        # Проверяем успешность операции
+        if result.get('status') == 'success' or response.status_code == 200:
+            return True
+        return False
+    except requests.exceptions.RequestException:
+        # Игнорируем ошибки удаления, если запись уже не существует
+        return False
 
 def ukraine_create_dns_record(domain, record_type, name, content, ttl=3600, api_keys=None):
     """
     Создание DNS записи через API ukraine.com.ua
     
-    API endpoint: POST /domains/{domain}/dns
+    API endpoint: dns/record_add
     
     Args:
         domain: доменное имя
         record_type: тип записи (A, AAAA, CNAME, MX, TXT и т.д.)
-        name: имя записи (@ для корня домена)
+        name: имя записи (@ для корня домена, или поддомен)
         content: содержимое записи (IP для A записи)
         ttl: время жизни записи в секундах
         api_keys: словарь с API ключами (опционально)
     """
-    api_url = api_keys.get('registrar_api_url', REGISTRAR_API_URL) if api_keys else REGISTRAR_API_URL
-    api_url = api_url.rstrip('/')
+    api_base = get_ukraine_api_base(api_keys)
+    url = f"{api_base}/dns/record_add/"
     
-    # Определяем, есть ли уже /v2 или /api/v2 в базовом URL
-    has_v2 = '/v2' in api_url or '/api/v2' in api_url
-    
-    # Пробуем разные варианты endpoints (избегаем дублирования /v2)
-    if has_v2:
-        endpoints = [
-            f"{api_url}/domains/{domain}/dns",
-        ]
-    else:
-        endpoints = [
-            f"{api_url}/domains/{domain}/dns",
-            f"{api_url}/api/v2/domains/{domain}/dns",
-            f"{api_url}/v2/domains/{domain}/dns",
-        ]
-    
-    headers = get_ukraine_headers(api_keys)
-    
-    data = {
-        'type': record_type,
-        'name': name,
-        'content': content,
-        'ttl': ttl
+    # Параметры GET запроса
+    get_params = {
+        'domain': domain
     }
     
-    last_error = None
-    for url in endpoints:
-        try:
-            response = requests.post(url, headers=headers, json=data, timeout=30)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            last_error = e
-            continue
+    url_with_params = f"{url}?{urlencode(get_params)}"
+    headers = get_ukraine_headers(api_keys)
     
-    error_msg = str(last_error) if last_error else "Неизвестная ошибка"
-    if "Failed to resolve" in error_msg or "Name or service not known" in error_msg:
-        raise Exception(f"Не удается подключиться к API ukraine.com.ua. Проверьте правильность URL API. Текущий URL: {api_url}. Ошибка: {error_msg}")
-    raise Exception(f"Ошибка создания DNS записи: {error_msg}")
+    # POST данные
+    post_data = {
+        'type': record_type,
+        'subdomain': name if name != '@' else '',  # @ означает корень домена
+        'data': content,
+        'ttl': ttl,
+        'priority': 0  # Для MX записей
+    }
+    
+    try:
+        response = requests.post(
+            url_with_params,
+            headers=headers,
+            data=urlencode(post_data),
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Ошибка создания DNS записи: {str(e)}")
+
+def ukraine_update_dns_record(domain, record_id, record_type, name, content, ttl=3600, api_keys=None):
+    """
+    Обновление DNS записи через API ukraine.com.ua
+    
+    API endpoint: dns/record_edit
+    
+    Args:
+        domain: доменное имя
+        record_id: ID записи (subdomain_id)
+        record_type: тип записи
+        name: имя записи
+        content: содержимое записи
+        ttl: время жизни записи
+        api_keys: словарь с API ключами (опционально)
+    """
+    api_base = get_ukraine_api_base(api_keys)
+    url = f"{api_base}/dns/record_edit/"
+    
+    # Параметры GET запроса
+    get_params = {
+        'domain': domain
+    }
+    
+    url_with_params = f"{url}?{urlencode(get_params)}"
+    headers = get_ukraine_headers(api_keys)
+    
+    # POST данные
+    post_data = {
+        'subdomain_id': record_id,
+        'type': record_type,
+        'subdomain': name if name != '@' else '',
+        'data': content,
+        'ttl': ttl,
+        'priority': 0
+    }
+    
+    try:
+        response = requests.post(
+            url_with_params,
+            headers=headers,
+            data=urlencode(post_data),
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Ошибка обновления DNS записи: {str(e)}")
 
 def ukraine_update_nameservers(domain, nameservers, api_keys=None):
     """
     Обновление NS записей через API ukraine.com.ua
     
-    API endpoint: PUT /domains/{domain}/nameservers
+    API endpoint: dns/nameservers_set или domain/nameservers_set
     
     Args:
         domain: доменное имя
         nameservers: список nameservers от Cloudflare
         api_keys: словарь с API ключами (опционально)
     """
-    api_url = api_keys.get('registrar_api_url', REGISTRAR_API_URL) if api_keys else REGISTRAR_API_URL
-    api_url = api_url.rstrip('/')
+    api_base = get_ukraine_api_base(api_keys)
     
-    # Определяем, есть ли уже /v2 или /api/v2 в базовом URL
-    has_v2 = '/v2' in api_url or '/api/v2' in api_url
-    
-    # Пробуем разные варианты endpoints (избегаем дублирования /v2)
-    if has_v2:
-        endpoints = [
-            f"{api_url}/domains/{domain}/nameservers",
-        ]
-    else:
-        endpoints = [
-            f"{api_url}/domains/{domain}/nameservers",
-            f"{api_url}/api/v2/domains/{domain}/nameservers",
-            f"{api_url}/v2/domains/{domain}/nameservers",
-        ]
+    # Пробуем разные варианты endpoints
+    endpoints = [
+        f"{api_base}/dns/nameservers_set/",
+        f"{api_base}/domain/nameservers_set/",
+    ]
     
     headers = get_ukraine_headers(api_keys)
     
-    # Формат может отличаться в зависимости от API
+    # Параметры GET запроса
+    get_params = {
+        'domain': domain
+    }
+    
+    # POST данные - пробуем разные форматы
     data_variants = [
-        {'nameservers': nameservers},  # Вариант 1
-        {'ns': nameservers},  # Вариант 2
-        {'name_servers': nameservers}  # Вариант 3
+        {'nameservers': ','.join(nameservers)},
+        {'nameservers': nameservers},
+        {'ns': ','.join(nameservers)},
+        {'ns': nameservers},
     ]
     
     last_error = None
     for endpoint_url in endpoints:
-        for data in data_variants:
+        url_with_params = f"{endpoint_url}?{urlencode(get_params)}"
+        
+        for post_data in data_variants:
             try:
-                response = requests.put(endpoint_url, headers=headers, json=data, timeout=30)
-                if response.status_code in [200, 201, 204]:
-                    return response.json() if response.content else {'status': 'success'}
+                response = requests.post(
+                    url_with_params,
+                    headers=headers,
+                    data=urlencode(post_data) if isinstance(post_data.get(list(post_data.keys())[0]), str) else urlencode({k: ','.join(v) if isinstance(v, list) else v for k, v in post_data.items()}),
+                    timeout=30
+                )
+                if response.status_code in [200, 201]:
+                    result = response.json()
+                    if result.get('status') == 'success' or 'success' in str(result).lower():
+                        return result
             except requests.exceptions.RequestException as e:
                 last_error = e
                 continue
-        
-        # Если все варианты данных не сработали, попробуем как список
-        try:
-            response = requests.put(endpoint_url, headers=headers, json=nameservers, timeout=30)
-            if response.status_code in [200, 201, 204]:
-                return response.json() if response.content else {'status': 'success'}
-        except requests.exceptions.RequestException as e:
-            last_error = e
-            continue
     
     error_msg = str(last_error) if last_error else "Неизвестная ошибка"
-    if "Failed to resolve" in error_msg or "Name or service not known" in error_msg:
-        raise Exception(f"Не удается подключиться к API ukraine.com.ua. Проверьте правильность URL API. Текущий URL: {api_url}. Ошибка: {error_msg}")
     raise Exception(f"Ошибка обновления NS записей: {error_msg}")
 
 def ukraine_update_domain_a_record(domain, ip_address, api_keys=None):
@@ -281,7 +303,10 @@ def ukraine_update_domain_a_record(domain, ip_address, api_keys=None):
         # Извлекаем список записей (структура может отличаться)
         records = []
         if isinstance(records_data, dict):
-            records = records_data.get('records', records_data.get('data', records_data.get('dns_records', [])))
+            # Пробуем разные варианты структуры ответа
+            records = records_data.get('result', records_data.get('data', records_data.get('records', [])))
+            if isinstance(records, dict):
+                records = records.get('list', [])
         elif isinstance(records_data, list):
             records = records_data
         
@@ -289,14 +314,14 @@ def ukraine_update_domain_a_record(domain, ip_address, api_keys=None):
         for record in records:
             record_id = None
             if isinstance(record, dict):
-                record_id = record.get('id', record.get('record_id', record.get('_id')))
+                record_id = record.get('subdomain_id', record.get('id', record.get('record_id', record.get('_id'))))
             elif isinstance(record, str):
                 record_id = record
             
             if record_id:
                 ukraine_delete_dns_record(domain, record_id, api_keys)
         
-        # Создаем новую A запись
+        # Создаем новую A запись для корня домена
         result = ukraine_create_dns_record(domain, 'A', '@', ip_address, 3600, api_keys)
         return {'status': 'success', 'message': 'A запись успешно обновлена'}
         
