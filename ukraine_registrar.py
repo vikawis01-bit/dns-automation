@@ -41,6 +41,9 @@ def get_ukraine_headers(api_keys=None):
     if not api_key:
         raise Exception("API токен не указан. Заполните настройки API.")
     
+    if not api_key:
+        raise Exception("API токен не указан. Заполните настройки API.")
+    
     return {
         'Authorization': f'Bearer {api_key}',
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -108,7 +111,21 @@ def ukraine_get_dns_records(domain, api_keys=None):
     
     # Если все варианты не сработали
     error_msg = str(last_error) if last_error else "Неизвестная ошибка"
-    raise Exception(f"Ошибка получения DNS записей (400 Bad Request). Проверьте правильность токена и домена. Ошибка: {error_msg}")
+    
+    # Более понятные сообщения об ошибках
+    if '400' in error_msg or 'Bad Request' in error_msg:
+        raise Exception(f"Ошибка 400 Bad Request. Возможные причины:\n"
+                       f"1. Токен не активирован в панели управления (API → Данные доступа)\n"
+                       f"2. Неправильный формат токена\n"
+                       f"3. Домен не принадлежит вашему аккаунту\n"
+                       f"4. Ограничение доступа по IP (добавьте IP сервера в белый список)\n"
+                       f"Техническая ошибка: {error_msg}")
+    elif '401' in error_msg or 'Unauthorized' in error_msg:
+        raise Exception(f"Ошибка авторизации (401). Проверьте правильность токена. Ошибка: {error_msg}")
+    elif '403' in error_msg or 'Forbidden' in error_msg:
+        raise Exception(f"Доступ запрещен (403). Проверьте ограничения по IP в панели управления. Ошибка: {error_msg}")
+    
+    raise Exception(f"Ошибка получения DNS записей: {error_msg}")
 
 def ukraine_delete_dns_record(domain, record_id, api_keys=None):
     """
