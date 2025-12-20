@@ -14,7 +14,7 @@ def load_settings_from_file():
     # Сначала загружаем из переменных окружения
     settings['CLOUDFLARE_EMAIL'] = os.getenv('CLOUDFLARE_EMAIL', '')
     settings['CLOUDFLARE_API_KEY'] = os.getenv('CLOUDFLARE_API_KEY', '')
-    settings['REGISTRAR_API_URL'] = os.getenv('REGISTRAR_API_URL', 'https://www.ukraine.com.ua/api/v2')
+    settings['REGISTRAR_API_URL'] = os.getenv('REGISTRAR_API_URL', 'https://adm.tools/action')
     settings['REGISTRAR_API_KEY'] = os.getenv('REGISTRAR_API_KEY', '')
     
     # Затем перезаписываем из файла, если он существует

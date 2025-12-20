@@ -3,7 +3,7 @@ function getApiKeys() {
     return {
         cloudflare_email: localStorage.getItem('cloudflare_email') || '',
         cloudflare_api_key: localStorage.getItem('cloudflare_api_key') || '',
-        registrar_api_url: localStorage.getItem('registrar_api_url') || 'https://api.ukraine.com.ua/v2',
+        registrar_api_url: localStorage.getItem('registrar_api_url') || 'https://adm.tools/action',
         registrar_api_key: localStorage.getItem('registrar_api_key') || ''
     };
 }
@@ -67,13 +67,13 @@ async function loadApiSettings() {
         if (result.cloudflare_email) {
             document.getElementById('cloudflare_email').value = result.cloudflare_email;
             document.getElementById('cloudflare_api_key').value = result.cloudflare_api_key || '';
-            document.getElementById('registrar_api_url').value = result.registrar_api_url || 'https://api.ukraine.com.ua/v2';
+            document.getElementById('registrar_api_url').value = result.registrar_api_url || 'https://adm.tools/action';
             document.getElementById('registrar_api_key').value = result.registrar_api_key || '';
             
             // Сохраняем в localStorage
             localStorage.setItem('cloudflare_email', result.cloudflare_email);
             localStorage.setItem('cloudflare_api_key', result.cloudflare_api_key || '');
-            localStorage.setItem('registrar_api_url', result.registrar_api_url || 'https://api.ukraine.com.ua/v2');
+            localStorage.setItem('registrar_api_url', result.registrar_api_url || 'https://adm.tools/action');
             localStorage.setItem('registrar_api_key', result.registrar_api_key || '');
         } else {
             // Если на сервере нет, загружаем из localStorage
