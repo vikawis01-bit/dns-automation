@@ -77,20 +77,35 @@ def ukraine_get_dns_records(domain, api_keys=None):
     url_with_params = f"{url}?{urlencode(get_params)}"
     headers = get_ukraine_headers(api_keys)
     
-    # POST данные (обычно пустые для получения списка)
-    post_data = {}
+    # POST данные - для получения списка может быть пустым массивом или пустой строкой
+    # Пробуем разные варианты
+    post_data_variants = [
+        '',  # Пустая строка
+        urlencode({}),  # Пустой объект как query string
+    ]
     
-    try:
-        response = requests.post(
-            url_with_params,
-            headers=headers,
-            data=urlencode(post_data),
-            timeout=30
-        )
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"Ошибка получения DNS записей: {str(e)}")
+    last_error = None
+    for post_data in post_data_variants:
+        try:
+            response = requests.post(
+                url_with_params,
+                headers=headers,
+                data=post_data,
+                timeout=30
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            last_error = e
+            # Если 400 ошибка, пробуем следующий вариант
+            if '400' in str(e):
+                continue
+            # Для других ошибок сразу выбрасываем исключение
+            raise Exception(f"Ошибка получения DNS записей: {str(e)}")
+    
+    # Если все варианты не сработали
+    error_msg = str(last_error) if last_error else "Неизвестная ошибка"
+    raise Exception(f"Ошибка получения DNS записей (400 Bad Request). Проверьте правильность токена и домена. Ошибка: {error_msg}")
 
 def ukraine_delete_dns_record(domain, record_id, api_keys=None):
     """
